@@ -350,10 +350,6 @@ void ublox_enableNavDop() {
 void configGPS() {
   GPSSerial2.begin(9600, SERIAL_8N1, RX2, TX2);
   Serial.println("[I] U-BLOX configuration starting");
-  Serial.println("[I] Turn on receiver");
-  ublox_turnOn();
-  Serial.println("[I] Disabling NMEA messages");
-  ublox_noNMEA();
   Serial.println("[I] Switching baudrate to 115200");
   ublox_setBaudrate();
   GPSSerial2.flush();
@@ -361,12 +357,15 @@ void configGPS() {
   GPSSerial2.end();
   delay(100);
   GPSSerial2.begin(115200, SERIAL_8N1, RX2, TX2);
+  Serial.println("[I] Turn on receiver");
+  ublox_turnOn();
+  Serial.println("[I] Disabling NMEA messages");
+  ublox_noNMEA();
   Serial.println("[I] Changing frequency to 15Hz");
   ublox_changeFrequency15();
   Serial.println("[I] Enabling NAV-PVT / NAV-DOP messages");
   ublox_enableNavPvt();
   ublox_enableNavDop();
-
   Serial.println("[I] U-BLOX configuration finished");
 }
 
