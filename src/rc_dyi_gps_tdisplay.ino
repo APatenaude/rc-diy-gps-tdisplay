@@ -43,6 +43,8 @@ float voltageTable[] = {
 
 float vbat = 0;
 int vref = 1100;
+int voltageReadCounts = 100;
+float voltageCorrectionFactor = 1.85;
 
 //----- screen
 
@@ -599,6 +601,7 @@ void loop() {
 }
 
 void displayInit() {
+  pinMode(4, OUTPUT);
   tft.begin();
   tft.setRotation(4);
   tft.setTextColor(TFT_WHITE, TFT_BLACK, true);
@@ -611,13 +614,11 @@ void displayInit() {
 }
 
 void voltageReadInit() {
-  pinMode(4, OUTPUT);
   pinMode(ADC_EN, OUTPUT);
   digitalWrite(ADC_EN, HIGH);
   esp_adc_cal_characteristics_t adc_chars;
   esp_adc_cal_value_t val_type = esp_adc_cal_characterize(
-      ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100,
-      &adc_chars); // Check type of calibration value used to characterize ADC
+      ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &adc_chars);
   if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
     Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
     vref = adc_chars.vref;
@@ -676,7 +677,7 @@ void battery_info(void *arg) {
         tft.setTextFont(6);
         drawingBatteryIcon(batteryImages[imgNum]);
         drawingText(String(batteryLevel) + "%");
-        vTaskDelay(3000);
+        vTaskDelay(1000);
       }
     } else {
       vTaskDelay(500);
@@ -688,12 +689,13 @@ void battery_info(void *arg) {
 float getVolatge() {
   int totalValue = 0;
   float averageValue = 0;
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < voltageReadCounts; i++) {
     totalValue += analogRead(ADC_PIN);
   }
-  averageValue = totalValue / 20;
+  averageValue = totalValue / voltageReadCounts;
 
-  return (averageValue / 4095.0) * 2.0 * 3.3 * (vref / 1000.0);
+  // return (averageValue / 4095.0) * 2.0 * 3.3 * (vref / 1000.0)
+  return (averageValue * voltageCorrectionFactor) / 1000.0;
 }
 
 int getChargeLevel(float volts) {
