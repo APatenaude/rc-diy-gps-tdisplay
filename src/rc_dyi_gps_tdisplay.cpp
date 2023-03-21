@@ -209,7 +209,7 @@ void drawBearing()
     {
         direction = "NW";
     }
-    else if (bearing >= 327 && bearing <= 348)
+    else if (bearing >= 327)
     {
         direction = "NNW";
     }
@@ -277,23 +277,9 @@ void toggleScreen()
     }
 }
 
-void displayInit()
-{
-    pinMode(4, OUTPUT);
-    tft.begin();
-    tft.setRotation(4);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK, true);
-    tft.fillScreen(TFT_BLACK);
-    tft.setSwapBytes(true);
-    tft.setTextFont(4);
-    TJpgDec.setJpgScale(1);
-    TJpgDec.setCallback(tft_output);
-    Serial.println("Display initialized");
-}
-
 void screen_loop()
 {
-    if (!screenOff && ((millis() - lastScreenDraw) > screenDrawInterval))
+    if (!screenOff && ((millis() - lastScreenDraw) > screenDrawInterval) || lastScreenDraw == 0)
     {
         lastScreenDraw = millis();
         // Serial.println("[I] Draw Screen");
@@ -310,6 +296,21 @@ void screen_loop()
         drawBearing();
         drawScreenOff();
     }
+}
+
+void displayInit()
+{
+    pinMode(4, OUTPUT);
+    tft.begin();
+    tft.setRotation(4);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK, true);
+    tft.fillScreen(TFT_BLACK);
+    tft.setSwapBytes(true);
+    tft.setTextFont(4);
+    TJpgDec.setJpgScale(1);
+    TJpgDec.setCallback(tft_output);
+    screen_loop();
+    Serial.println("Display initialized");
 }
 #pragma endregion SCREEN
 //-----
@@ -454,7 +455,6 @@ int getChargeLevel(float volts)
 {
     int idx = 50;
     int prev = 0;
-    int half = 0;
     if (volts >= 4.2)
     {
         return 100;
@@ -465,7 +465,7 @@ int getChargeLevel(float volts)
     }
     while (true)
     {
-        half = abs(idx - prev) / 2;
+        int half = abs(idx - prev) / 2;
         prev = idx;
         if (volts >= voltageTable[idx])
         {
@@ -534,15 +534,15 @@ void battery_info(void *arg)
                 {
                     batteryIconPath = batteryImages[3];
                 }
-                else if (batteryLevel < 75 && batteryLevel >= 50)
+                else if (batteryLevel >= 50)
                 {
                     batteryIconPath = batteryImages[2];
                 }
-                else if (batteryLevel < 50 && batteryLevel >= 25)
+                else if (batteryLevel >= 25)
                 {
                     batteryIconPath = batteryImages[1];
                 }
-                else if (batteryLevel < 25)
+                else
                 {
                     batteryIconPath = batteryImages[0];
                 }
@@ -1037,9 +1037,9 @@ void configBLE()
 {
     BLEDevice::init(device_name.c_str());
 
-    BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_DEFAULT);
-    BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_ADV);
-    BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_SCAN);
+    BLEDevice::setPower(ESP_PWR_LVL_P9, ESP_BLE_PWR_TYPE_DEFAULT);
+    BLEDevice::setPower(ESP_PWR_LVL_P9, ESP_BLE_PWR_TYPE_ADV);
+    BLEDevice::setPower(ESP_PWR_LVL_P9, ESP_BLE_PWR_TYPE_SCAN);
 
     BLE_server = BLEDevice::createServer();
     BLE_server->setCallbacks(new ServerCallbacks());
@@ -1116,9 +1116,9 @@ void setup()
     displayInit();
     voltageReadInit();
     xTaskCreate(battery_info, "battery_info", 4096, NULL, 1, &batteryTaskHandle);
-    //turnScreenOff();
 
     configBLE();
+
     configGPS();
 
     button_init();
@@ -1135,7 +1135,6 @@ void loop()
 
     if (!screenOff || deviceConnected)
     {
-        Serial.println("loop");
         if (read_ublox())
         {
             if (_validPacket.pvt.message_id == UBX_ID_NAV_PVT)
