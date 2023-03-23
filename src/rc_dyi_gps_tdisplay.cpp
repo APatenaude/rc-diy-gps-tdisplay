@@ -692,6 +692,7 @@ void ublox_sendPacket(byte *packet, byte len)
     {
         GPSSerial2.write(packet[i]);
     }
+    GPSSerial2.flush();
 }
 
 // U-blox receiver disable NMEA messages
@@ -798,7 +799,7 @@ void ublox_setBaudrate()
     ublox_sendPacket(packet, sizeof(packet));
 }
 
-// U-blox receiver change frequency to 16.7Hz
+// U-blox receiver change frequency to 16Hz
 void ublox_changeFrequency()
 {
     byte packet[] = {
@@ -808,14 +809,14 @@ void ublox_changeFrequency()
         0x08,
         0x06,
         0x00,
-        0x3C,
+        0x3D,
         0x00,
         0x01,
         0x00,
         0x01,
         0x00,
-        0x52,
-        0x22,
+        0x53,
+        0x28,
     };
     ublox_sendPacket(packet, sizeof(packet));
 }
@@ -936,7 +937,7 @@ void configGPS()
     ublox_turnOn();
     Serial.println("[I] Disabling NMEA messages");
     ublox_noNMEA();
-    Serial.println("[I] Changing frequency to 16.7Hz");
+    Serial.println("[I] Changing frequency to 16Hz");
     ublox_changeFrequency();
     Serial.println("[I] Enabling NAV-PVT / NAV-DOP messages");
     ublox_enableNavPvt();
