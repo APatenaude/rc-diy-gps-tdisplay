@@ -15,16 +15,28 @@
 //----- SCREEN
 #pragma region SCREEN
 
+const char *batteryImages[] = {
+    "/battery_01.jpg",
+    "/battery_02.jpg",
+    "/battery_03.jpg",
+    "/battery_04.jpg",
+    "/battery_chrg_01.jpg",
+    "/battery_chrg_02.jpg",
+    "/battery_chrg_03.jpg",
+    "/battery_chrg_04.jpg",
+};
+bool charging = false;
+
 TaskHandle_t batteryTaskHandle = NULL;
+TaskHandle_t screenTaskHandle = NULL;
+
 #define ADC_EN 14 // ADC_EN is the ADC detection enable port
 
 TFT_eSPI tft = TFT_eSPI();
 
 bool screenOff = false;
-unsigned long lastScreenDraw = 0;
-unsigned long screenDrawInterval = 1000;
 int batteryLevel = 0;
-String batteryIconPath = "";
+int batteryIconIndex = 0;
 float batteryVoltage = 0;
 int sattelitesCount = 0;
 int fixType = 0;
@@ -33,6 +45,8 @@ double longitude = 0;
 double altitude = 0;
 int speed = 0;
 int bearing = 0;
+int padding = 0;
+int smallFontOffset = 3;
 
 #define ICON_WIDTH 70
 #define ICON_HEIGHT 40
@@ -44,7 +58,7 @@ int bearing = 0;
 #define VOLTAGE_POS_Y 40
 
 #define SATTELITES_POS_X 70
-#define SATTELITES_POS_Y 80
+#define SATTELITES_POS_Y 75
 
 #define FIXTYPE_POS_X 70
 #define FIXTYPE_POS_Y (SATTELITES_POS_Y + LINE_HEIGHT)
@@ -69,40 +83,43 @@ int bearing = 0;
 
 void drawBatteryIcon()
 {
-    TJpgDec.drawFsJpg(ICON_POS_X, ICON_POS_Y, batteryIconPath);
+    TJpgDec.drawFsJpg(ICON_POS_X, ICON_POS_Y, batteryImages[batteryIconIndex]);
 }
 
 void drawBatteryLevel()
 {
-    tft.fillRect(0, 0, ICON_POS_X, ICON_HEIGHT, TFT_BLACK);
-    tft.drawString(batteryLevel >= 150 ? "Chrg" : String(batteryLevel) + "%", 0, 8, 4);
+    padding = tft.textWidth("100%", 4);
+    tft.setTextPadding(padding);
+    tft.drawString(charging ? "Chrg" : String(batteryLevel) + "%", 0, 8, 4);
 }
 
 void drawBatteryVoltage()
 {
-    tft.fillRect(0, VOLTAGE_POS_Y, tft.width(), LINE_HEIGHT + 1, TFT_BLACK);
-    tft.drawString("Volts:", 0, VOLTAGE_POS_Y, 4);
+    padding = tft.textWidth("8.88v", 4);
+    tft.setTextPadding(padding);
     tft.drawString(String(batteryVoltage) + "v", VOLTAGE_POS_X, VOLTAGE_POS_Y, 4);
 }
 
 void drawSattelites()
 {
-    tft.fillRect(0, SATTELITES_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Sattelites :", 0, SATTELITES_POS_Y + 5, 2);
+    padding = tft.textWidth("888", 4);
+    tft.setTextPadding(padding);
     tft.drawString(String(sattelitesCount), SATTELITES_POS_X, SATTELITES_POS_Y, 4);
 }
 
 void drawFixType()
 {
-    tft.fillRect(0, FIXTYPE_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Fix Type :", 0, FIXTYPE_POS_Y + 5, 2);
+    padding = tft.textWidth("Dead Reck.", 2);
+    tft.setTextPadding(padding);
     switch (fixType)
     {
     case 0:
-        tft.drawString("No Fix", FIXTYPE_POS_X, FIXTYPE_POS_Y + 5, 2);
+        tft.fillRect(FIXTYPE_POS_X, FIXTYPE_POS_Y, padding, LINE_HEIGHT, TFT_BLACK);
+        tft.drawString("No Fix", FIXTYPE_POS_X, FIXTYPE_POS_Y + smallFontOffset, 2);
         break;
     case 1:
-        tft.drawString("Dead Reck.", FIXTYPE_POS_X, FIXTYPE_POS_Y + 5, 2);
+        tft.fillRect(FIXTYPE_POS_X, FIXTYPE_POS_Y, padding, LINE_HEIGHT, TFT_BLACK);
+        tft.drawString("Dead Reck.", FIXTYPE_POS_X, FIXTYPE_POS_Y + smallFontOffset, 2);
         break;
     case 2:
         tft.drawString("2D", FIXTYPE_POS_X, FIXTYPE_POS_Y, 4);
@@ -111,10 +128,12 @@ void drawFixType()
         tft.drawString("3D", FIXTYPE_POS_X, FIXTYPE_POS_Y, 4);
         break;
     case 4:
-        tft.drawString("GNSS+DR", FIXTYPE_POS_X, FIXTYPE_POS_Y + 5, 2);
+        tft.fillRect(FIXTYPE_POS_X, FIXTYPE_POS_Y, padding, LINE_HEIGHT, TFT_BLACK);
+        tft.drawString("GNSS+DR", FIXTYPE_POS_X, FIXTYPE_POS_Y + smallFontOffset, 2);
         break;
     case 5:
-        tft.drawString("Time Only", FIXTYPE_POS_X, FIXTYPE_POS_Y + 5, 2);
+        tft.fillRect(FIXTYPE_POS_X, FIXTYPE_POS_Y, padding, LINE_HEIGHT, TFT_BLACK);
+        tft.drawString("Time Only", FIXTYPE_POS_X, FIXTYPE_POS_Y + smallFontOffset, 2);
         break;
     default:
         break;
@@ -123,32 +142,28 @@ void drawFixType()
 
 void drawLatttitued()
 {
-    tft.fillRect(0, LATITUDE_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Lat :", 0, LATITUDE_POS_Y + 5, 2);
-    tft.drawString(String(latitude, 8), LATITUDE_POS_X, LATITUDE_POS_Y + 5, 2);
+    padding = tft.textWidth("-88.88888888", 2);
+    tft.setTextPadding(padding);
+    tft.drawString(String(latitude, 8), LATITUDE_POS_X, LATITUDE_POS_Y + smallFontOffset, 2);
 }
 
 void drawLongitude()
 {
-    tft.fillRect(0, LONGITUDE_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Long :", 0, LONGITUDE_POS_Y + 5, 2);
-    tft.drawString(String(longitude, 8), LONGITUDE_POS_X, LONGITUDE_POS_Y + 5, 2);
+    padding = tft.textWidth("-88.88888888", 2);
+    tft.setTextPadding(padding);
+    tft.drawString(String(longitude, 8), LONGITUDE_POS_X, LONGITUDE_POS_Y + smallFontOffset, 2);
 }
 
 void drawAltitude()
 {
-    tft.fillRect(0, ALTITUDE_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Alt :", 0, ALTITUDE_POS_Y + 5, 2);
-    tft.drawString("meters", tft.width() - 40, ALTITUDE_POS_Y + 5, 2);
-    tft.drawString(String(altitude, 0), ALTITUDE_POS_X, ALTITUDE_POS_Y + 5, 2);
+    padding = tft.textWidth("888888", 2);
+    tft.setTextPadding(padding);
+    tft.drawString(String(altitude, 0), ALTITUDE_POS_X, ALTITUDE_POS_Y + smallFontOffset, 2);
 }
 
 void drawBearing()
 {
-    tft.fillRect(0, BEARING_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Bearing :", 0, BEARING_POS_Y + 5, 2);
     String direction = "";
-
     if (bearing >= 349 || bearing <= 11)
     {
         direction = "N";
@@ -214,20 +229,30 @@ void drawBearing()
         direction = "NNW";
     }
 
+    padding = tft.textWidth("WWW", 4);
+    tft.setTextPadding(padding);
     tft.drawString(direction, BEARING_POS_X, BEARING_POS_Y, 4);
 }
 
-void drawScreenOff()
+void drawLabels()
 {
+    tft.drawString("Volts:", 0, VOLTAGE_POS_Y, 4);
+    tft.drawString("Sattelites :", 0, SATTELITES_POS_Y + smallFontOffset, 2);
+    tft.drawString("Fix Type :", 0, FIXTYPE_POS_Y + smallFontOffset, 2);
+    tft.drawString("Lat :", 0, LATITUDE_POS_Y + smallFontOffset, 2);
+    tft.drawString("Long :", 0, LONGITUDE_POS_Y + smallFontOffset, 2);
+    tft.drawString("Alt :", 0, ALTITUDE_POS_Y + smallFontOffset, 2);
+    tft.drawString("meters", tft.width() - 40, ALTITUDE_POS_Y + smallFontOffset, 2);
+    tft.drawString("Bearing :", 0, BEARING_POS_Y + smallFontOffset, 2);
     tft.drawString("Screen Off", SCREENOFF_POS_X, SCREENOFF_POS_Y, 2);
 }
 
 void drawSpeed()
 {
-    tft.fillRect(0, SPEED_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
-    tft.drawString("Speed :", 0, SPEED_POS_Y + 5, 2);
+    // tft.fillRect(0, SPEED_POS_Y, tft.width(), LINE_HEIGHT, TFT_BLACK);
+    tft.drawString("Speed :", 0, SPEED_POS_Y + smallFontOffset, 2);
     tft.drawString(String(speed / 10), SPEED_POS_X, SPEED_POS_Y, 4);
-    tft.drawString("kph", tft.width() - 20, SPEED_POS_Y + 5, 2);
+    tft.drawString("kph", tft.width() - 20, SPEED_POS_Y + smallFontOffset, 2);
 }
 
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h,
@@ -245,10 +270,15 @@ void turnScreenOff()
     tft.writecommand(ST7789_DISPOFF); // Switch off the display
     tft.writecommand(ST7789_SLPIN);   // Sleep the display driver
     digitalWrite(ADC_EN, LOW);        // Toggle voltage reading
+    if (screenTaskHandle != NULL)
+    {
+        vTaskSuspend(screenTaskHandle);
+    }
     if (batteryTaskHandle != NULL)
     {
         vTaskSuspend(batteryTaskHandle);
     }
+
     screenOff = true;
 }
 
@@ -258,6 +288,10 @@ void turnScreenOn()
     tft.writecommand(ST7789_DISPON); // Switch on the display
     tft.writecommand(ST7789_SLPOUT); // Wake the display driver
     digitalWrite(ADC_EN, HIGH);      // Toggle voltage reading
+    if (screenTaskHandle != NULL)
+    {
+        vTaskResume(screenTaskHandle);
+    }
     if (batteryTaskHandle != NULL)
     {
         vTaskResume(batteryTaskHandle);
@@ -277,13 +311,13 @@ void toggleScreen()
     }
 }
 
-void screen_loop()
+void screen_loop(void *arg)
 {
-    if (!screenOff && ((millis() - lastScreenDraw) > screenDrawInterval) || lastScreenDraw == 0)
-    {
-        lastScreenDraw = millis();
-        // Serial.println("[I] Draw Screen");
+    tft.fillScreen(TFT_BLACK);
+    drawLabels();
 
+    while (true)
+    {
         drawBatteryIcon();
         drawBatteryLevel();
         drawBatteryVoltage();
@@ -294,7 +328,10 @@ void screen_loop()
         drawAltitude();
         // drawSpeed();
         drawBearing();
-        drawScreenOff();
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        // Serial.print("screen 4096/ ");
+        // Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
 }
 
@@ -309,7 +346,7 @@ void displayInit()
     tft.setTextFont(4);
     TJpgDec.setJpgScale(1);
     TJpgDec.setCallback(tft_output);
-    screen_loop();
+    TJpgDec.drawFsJpg(0, 0, "/start.jpg");
     Serial.println("Display initialized");
 }
 #pragma endregion SCREEN
@@ -317,10 +354,6 @@ void displayInit()
 
 //----- BATTERY
 #pragma region BATTERY
-
-const char *batteryImages[] = {"/battery_01.jpg", "/battery_02.jpg",
-                               "/battery_03.jpg", "/battery_04.jpg",
-                               "/battery_05.jpg"};
 
 // Array with voltage - charge definitions
 float voltageTable[] = {
@@ -431,9 +464,8 @@ float voltageTable[] = {
 // #define MIN_USB_PWR_VOL 5.0
 #define MIN_USB_CHRG_VOL 4.4
 
-float vbat = 0;
 int vref = 1100;
-int voltageReadCounts = 1000;
+int voltageReadCounts = 100;
 float voltageCorrectionFactor = 1.88;
 
 float getVolatge()
@@ -506,54 +538,48 @@ void voltageReadInit()
     }
 }
 
-void battery_info(void *arg)
+void battery_loop(void *arg)
 {
+
     while (true)
     {
         if (!screenOff)
         {
-            vbat = getVolatge();
-            batteryVoltage = vbat;
+            batteryVoltage = getVolatge();
+            charging = batteryVoltage >= MIN_USB_CHRG_VOL;
 
-            if (vbat >= MIN_USB_CHRG_VOL)
+            if (charging)
             {
-                for (int i = 0; i < ARRAY_SIZE(batteryImages); i++)
-                {
-                    if (i == 3)
-                        continue;
-                    batteryIconPath = batteryImages[i];
-                    batteryLevel = 200;
-                    vTaskDelay(1000);
-                }
+                if (batteryIconIndex < 4 || batteryIconIndex >= 7)
+                    batteryIconIndex = 4;
+                else
+                    batteryIconIndex += 1;
             }
             else
             {
-
-                batteryLevel = getChargeLevel(vbat);
+                batteryLevel = getChargeLevel(batteryVoltage);
                 if (batteryLevel >= 75)
                 {
-                    batteryIconPath = batteryImages[3];
+                    batteryIconIndex = 3;
                 }
                 else if (batteryLevel >= 50)
                 {
-                    batteryIconPath = batteryImages[2];
+                    batteryIconIndex = 2;
                 }
                 else if (batteryLevel >= 25)
                 {
-                    batteryIconPath = batteryImages[1];
+                    batteryIconIndex = 1;
                 }
                 else
                 {
-                    batteryIconPath = batteryImages[0];
+                    batteryIconIndex = 0;
                 }
-
-                vTaskDelay(2000);
             }
         }
-        else
-        {
-            vTaskDelay(2000);
-        }
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        // Serial.print("batt 4096/ ");
         // Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
 }
@@ -772,8 +798,8 @@ void ublox_setBaudrate()
     ublox_sendPacket(packet, sizeof(packet));
 }
 
-// U-blox receiver change frequency to 15.15Hz
-void ublox_changeFrequency15()
+// U-blox receiver change frequency to 16.7Hz
+void ublox_changeFrequency()
 {
     byte packet[] = {
         0xB5,
@@ -782,14 +808,14 @@ void ublox_changeFrequency15()
         0x08,
         0x06,
         0x00,
-        0x42,
+        0x3C,
         0x00,
         0x01,
         0x00,
         0x01,
         0x00,
-        0x58,
-        0x46,
+        0x52,
+        0x22,
     };
     ublox_sendPacket(packet, sizeof(packet));
 }
@@ -910,8 +936,8 @@ void configGPS()
     ublox_turnOn();
     Serial.println("[I] Disabling NMEA messages");
     ublox_noNMEA();
-    Serial.println("[I] Changing frequency to 15Hz");
-    ublox_changeFrequency15();
+    Serial.println("[I] Changing frequency to 16.7Hz");
+    ublox_changeFrequency();
     Serial.println("[I] Enabling NAV-PVT / NAV-DOP messages");
     ublox_enableNavPvt();
     ublox_enableNavDop();
@@ -1114,14 +1140,17 @@ void setup()
     Serial.println("\r\nSPIFFS available!");
 
     displayInit();
-    voltageReadInit();
-    xTaskCreate(battery_info, "battery_info", 4096, NULL, 1, &batteryTaskHandle);
 
     configBLE();
 
     configGPS();
 
     button_init();
+
+    voltageReadInit();
+    xTaskCreatePinnedToCore(battery_loop, "battery_info", 4096, NULL, 2, &batteryTaskHandle, 0);
+
+    xTaskCreatePinnedToCore(screen_loop, "screen_loop", 4096, NULL, 1, &screenTaskHandle, 0);
 
     Serial.println("[I] Setup complete");
 }
@@ -1130,8 +1159,6 @@ void setup()
 void loop()
 {
     button_loop();
-
-    screen_loop();
 
     if (!screenOff || deviceConnected)
     {
