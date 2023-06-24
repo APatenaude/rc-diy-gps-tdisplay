@@ -35,6 +35,9 @@ TaskHandle_t screenTaskHandle = NULL;
 TFT_eSPI tft = TFT_eSPI();
 
 bool screenOff = false;
+unsigned long startTime = 0;
+const unsigned long screenOffTimer = 5000; // 5 seconds
+bool timerElapsed = false;
 int batteryLevel = 0;
 int batteryIconIndex = 0;
 float batteryVoltage = 0;
@@ -1154,6 +1157,8 @@ void setup()
     xTaskCreatePinnedToCore(screen_loop, "screen_loop", 4096, NULL, 1, &screenTaskHandle, 0);
 
     Serial.println("[I] Setup complete");
+
+    startTime = millis();
 }
 
 // Main loop
@@ -1294,6 +1299,19 @@ void loop()
             if (deviceConnected && !oldDeviceConnected)
             {
                 oldDeviceConnected = deviceConnected;
+            }
+        }
+    }
+
+    if (!timerElapsed)
+    {
+        unsigned long currentTime = millis();
+        if (currentTime - startTime >= screenOffTimer)
+        {
+            timerElapsed = true;
+            if (!screenOff)
+            {
+                turnScreenOff();
             }
         }
     }
